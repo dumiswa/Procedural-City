@@ -40,7 +40,6 @@ public class StreetLayoutGenerator : MonoBehaviour
 
     private void Start()
     {
-        //RandomizeSeed();
         GenerateCity();
     }
 
@@ -109,10 +108,11 @@ public class StreetLayoutGenerator : MonoBehaviour
                 float dy = r - center.y;
                 float distanceSq = dx * dx + dy * dy;
                 float radiusSq = centerRadius * centerRadius;
+                float modifier = 0.7f;
 
                 // Only outline (like a ring)
-                float inner = (centerRadius - 0.5f) * (centerRadius - 0.5f);
-                float outer = (centerRadius + 0.5f) * (centerRadius + 0.5f);
+                float inner = (centerRadius - modifier) * (centerRadius - modifier);
+                float outer = (centerRadius + modifier) * (centerRadius + modifier);
                 if (distanceSq >= inner && distanceSq <= outer)
                     roadMap[r, c] = 1;
 

@@ -11,11 +11,6 @@ public class StreetLayoutGeneratorEditor : Editor
         StreetLayoutGenerator gen = (StreetLayoutGenerator)target;
         GUILayout.Space(10);
 
-      /*  if (GUILayout.Button("Randomize Layout"))
-        {
-            gen.RandomizeSeed();
-        }*/
-
         if (GUILayout.Button("Regenerate Current"))
         {
             gen.GenerateCity();
