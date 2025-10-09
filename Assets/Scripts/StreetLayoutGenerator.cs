@@ -13,10 +13,11 @@ public class StreetLayoutGenerator : MonoBehaviour
     [Tooltip("Offset of the city in world space.")]
     [SerializeField] private Vector3 origin = Vector3.zero;
 
-    [Header("City Shape")]
-    [Range(0.1f, 1f)][SerializeField] private float cityRadius = 0.45f;
-    [Range(0f, 1f)][SerializeField] private float circularity = 0.7f;
-    [Range(0f, 1f)][SerializeField] private float irregularity = 0.4f;
+    [Header("City Center")] 
+    [Tooltip("Radius of center in tiles.")] 
+    [SerializeField, Range(2, 30)] private int centerRadius = 10;
+    [Tooltip("Should the center be filled or simply an outline?")]
+    [SerializeField] private bool isCenterFilled = false;
 
     [Header("Street Density")]
     [Tooltip("Average distance between main roads (in tiles).")]
@@ -39,7 +40,7 @@ public class StreetLayoutGenerator : MonoBehaviour
 
     private void Start()
     {
-        RandomizeSeed();
+        //RandomizeSeed();
         GenerateCity();
     }
 
@@ -64,8 +65,8 @@ public class StreetLayoutGenerator : MonoBehaviour
         center = new Vector2(cols / 2f, rows / 2f);
 
         BuildCore();
-        BuildTransition();
-        BuildOutskirts();
+        //BuildTransition();
+        //BuildOutskirts();
         SpawnRoads();
     }
 
@@ -96,32 +97,41 @@ public class StreetLayoutGenerator : MonoBehaviour
     }
 
 
+
+
     private void BuildCore()
     {
-        float radius = Mathf.Min(cols, rows) * cityRadius;
-
         for (int r = 0; r < rows; r++)
         {
             for (int c = 0; c < cols; c++)
             {
-                Vector2 pos = new Vector2(c, r);
-                float dist = Vector2.Distance(pos, center);
-                if (dist > radius) continue;
+                float dx = c - center.x;
+                float dy = r - center.y;
+                float distanceSq = dx * dx + dy * dy;
+                float radiusSq = centerRadius * centerRadius;
 
-                float normalized = dist / radius;
-                float density = Mathf.Lerp(1f, 0.15f, normalized);
-
-                float angle = Mathf.Atan2(r - center.y, c - center.x);
-                float radialNoise = Mathf.PerlinNoise(angle * 3f, normalized * 3f);
-
-                if (Random.value < density * 0.4f + radialNoise * 0.3f)
+                // Only outline (like a ring)
+                float inner = (centerRadius - 0.5f) * (centerRadius - 0.5f);
+                float outer = (centerRadius + 0.5f) * (centerRadius + 0.5f);
+                if (distanceSq >= inner && distanceSq <= outer)
                     roadMap[r, c] = 1;
+
+                if (isCenterFilled)
+                {
+                    // Fill everything inside the circle
+
+                    if (distanceSq <= radiusSq)
+                        roadMap[r, c] = 1;
+                }
             }
         }
+        
     }
 
 
-    private void BuildTransition()
+
+
+    /*private void BuildTransition()
     {
         for (int row = 0; row < rows; row += baseSpacing)
         {
@@ -129,10 +139,10 @@ public class StreetLayoutGenerator : MonoBehaviour
             {
                 Vector2 pos = new Vector2(col, row);
                 float dist = Vector2.Distance(pos, center);
-                float normalized = dist / (cols * cityRadius);
+                float normalized = dist / (cols * centerRadius);
                 float weight = Mathf.Clamp01(normalized);
 
-             
+
                 int jRow = Mathf.Clamp(Mathf.RoundToInt(row + Random.Range(-1f, 1f) * irregularity * baseSpacing), 0, rows - 1);
                 int jCol = Mathf.Clamp(Mathf.RoundToInt(col + Random.Range(-1f, 1f) * irregularity * baseSpacing), 0, cols - 1);
 
@@ -147,7 +157,7 @@ public class StreetLayoutGenerator : MonoBehaviour
                     }
                     else
                     {
-                      
+
                         for (int x = -1; x <= 1; x++)
                             if (InBounds(jRow, jCol + x)) roadMap[jRow, jCol + x] = 1;
                         for (int y = -1; y <= 1; y++)
@@ -186,27 +196,20 @@ public class StreetLayoutGenerator : MonoBehaviour
                 col += Mathf.RoundToInt(dir.x);
             }
         }
-    }
+    }*/
 
     private void SpawnRoads()
     {
-        Vector3 baseOrigin = origin;
+        if (roadMap == null) return;
 
+        Vector3 baseOrigin = origin;
         for (int r = 0; r < rows; r++)
         {
             for (int c = 0; c < cols; c++)
             {
                 if (roadMap[r, c] == 0) continue;
 
-                bool left = InBounds(r, c - 1) && roadMap[r, c - 1] == 1;
-                bool right = InBounds(r, c + 1) && roadMap[r, c + 1] == 1;
-                bool up = InBounds(r + 1, c) && roadMap[r + 1, c] == 1;
-                bool down = InBounds(r - 1, c) && roadMap[r - 1, c] == 1;
-
-                Quaternion rot = (left || right)
-                    ? Quaternion.Euler(0, 90, 0)
-                    : Quaternion.identity;
-
+                Quaternion rot = Quaternion.identity;
                 Vector3 pos = baseOrigin + new Vector3(c * tileWorldSize, 0f, r * tileWorldSize);
                 Instantiate(roadPrefab, pos, rot, transform);
             }
@@ -218,3 +221,4 @@ public class StreetLayoutGenerator : MonoBehaviour
         return row >= 0 && row < rows && col >= 0 && col < cols;
     }
 }
+

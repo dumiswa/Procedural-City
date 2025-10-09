@@ -2,7 +2,7 @@
 using UnityEngine;
 
 [CustomEditor(typeof(StreetLayoutGenerator))]
-public class SreetLayoutGeneratorEditor : Editor
+public class StreetLayoutGeneratorEditor : Editor
 {
     public override void OnInspectorGUI()
     {
@@ -11,10 +11,10 @@ public class SreetLayoutGeneratorEditor : Editor
         StreetLayoutGenerator gen = (StreetLayoutGenerator)target;
         GUILayout.Space(10);
 
-        if (GUILayout.Button("Randomize Layout"))
+      /*  if (GUILayout.Button("Randomize Layout"))
         {
             gen.RandomizeSeed();
-        }
+        }*/
 
         if (GUILayout.Button("Regenerate Current"))
         {
