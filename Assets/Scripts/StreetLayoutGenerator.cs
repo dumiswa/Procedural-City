@@ -1,4 +1,5 @@
 using UnityEngine;
+using static UnityEngine.Rendering.DebugUI.Table;
 
 public class StreetLayoutGenerator : MonoBehaviour
 {
@@ -31,6 +32,12 @@ public class StreetLayoutGenerator : MonoBehaviour
     [SerializeField, Range(1, 300)] private int mainStreetLength = 20;
     [Tooltip("Thickness of the main streets.")]
     [SerializeField, Range(1, 10)] private int mainStreetThickness = 1;
+
+    [Header("Grid Layout")]
+    [Tooltip("Spacing between blocks in tiles.")]
+    [SerializeField, Range(2, 20)] private int blockSpacing = 5;
+    [Tooltip("Thickness of the grid streets.")]
+    [SerializeField, Range(1, 5)] private int gridThickness = 1;
 
 
     private int[,] roadMap;
@@ -73,6 +80,7 @@ public class StreetLayoutGenerator : MonoBehaviour
         // Actually generate the city
         BuildCore();
         BuildMainStreets();
+        BuildGridLayout();
         SpawnRoads();
     }
 
@@ -177,6 +185,52 @@ public class StreetLayoutGenerator : MonoBehaviour
         }
     }
 
+    private void BuildGridLayout()
+    {
+        float radiusSq = centerRadius * centerRadius;
+
+        // Horizontal streets
+        for (int r = 0; r < rows; r += blockSpacing)
+        {
+            for (int c = 0; c < cols; c++)
+            {
+                float dx = c - center.x;
+                float dy = r - center.y;
+                float distSq = dx * dx + dy * dy;
+
+                if (distSq > radiusSq && InBounds(r, c))
+                {
+                    for (int t = 0; t < gridThickness; t++)
+                    {
+                        int rr = r + t;
+                        if (InBounds(rr, c))
+                            roadMap[rr, c] = 1;
+                    }
+                }
+            }
+        }
+
+        // Vertical streets
+        for (int c = 0; c < cols; c += blockSpacing)
+        {
+            for (int r = 0; r < rows; r++)
+            {
+                float dx = c - center.x;
+                float dy = r - center.y;
+                float distSq = dx * dx + dy * dy;
+
+                if (distSq > radiusSq && InBounds(r, c))
+                {
+                    for (int t = 0; t < gridThickness; t++)
+                    {
+                        int cc = c + t;
+                        if (InBounds(r, cc))
+                            roadMap[r, cc] = 1;
+                    }
+                }
+            }
+        }
+    }
 
     private void SpawnRoads()
     {
