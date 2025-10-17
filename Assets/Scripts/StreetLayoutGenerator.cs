@@ -1,12 +1,13 @@
 using UnityEngine;
-using static UnityEngine.Rendering.DebugUI.Table;
 
 public class StreetLayoutGenerator : MonoBehaviour
 {
     #region Inpector
 
-    [Header("Prefab")]
+    [Header("Prefabs")]
     [SerializeField] private GameObject roadPrefab;
+    [SerializeField] private GameObject buildablePrefab;
+    [SerializeField] private GameObject[,] buildableGrid;
 
     [Header("Grid Settings")]
     [Tooltip("Number of rows and columns in the city grid.")]
@@ -32,12 +33,15 @@ public class StreetLayoutGenerator : MonoBehaviour
     [SerializeField, Range(1, 300)] private int mainStreetLength = 20;
     [Tooltip("Thickness of the main streets.")]
     [SerializeField, Range(1, 10)] private int mainStreetThickness = 1;
+    [SerializeField] private bool createMainStreets = true;
 
     [Header("Grid Layout")]
     [Tooltip("Spacing between blocks in tiles.")]
     [SerializeField, Range(2, 20)] private int blockSpacing = 5;
     [Tooltip("Thickness of the grid streets.")]
     [SerializeField, Range(1, 5)] private int gridThickness = 1;
+
+    [SerializeField] private bool createGrid = true;
 
 
     private int[,] roadMap;
@@ -48,11 +52,8 @@ public class StreetLayoutGenerator : MonoBehaviour
 
     #region Unity LifeCycle
 
-    private void Start()
-    {
-        GenerateCity();
-    }
-
+    private void Start() => GenerateCity();
+    
     #endregion
 
     #region GUI Component
@@ -81,6 +82,8 @@ public class StreetLayoutGenerator : MonoBehaviour
         BuildCore();
         BuildMainStreets();
         BuildGridLayout();
+
+        SpawnBuildableTiles();
         SpawnRoads();
     }
 
@@ -146,6 +149,8 @@ public class StreetLayoutGenerator : MonoBehaviour
 
     private void BuildMainStreets()
     {
+        if (!createMainStreets) return;
+
         int cx = Mathf.RoundToInt(center.x);
         int cy = Mathf.RoundToInt(center.y);
 
@@ -187,6 +192,7 @@ public class StreetLayoutGenerator : MonoBehaviour
 
     private void BuildGridLayout()
     {
+        if (!createGrid) return;
         float radiusSq = centerRadius * centerRadius;
 
         // Horizontal streets
@@ -232,6 +238,26 @@ public class StreetLayoutGenerator : MonoBehaviour
         }
     }
 
+    private void SpawnBuildableTiles()
+    {
+        float offsetX = -center.x * tileWorldSize;
+        float offsetZ = -center.y * tileWorldSize;
+
+        buildableGrid = new GameObject[rows, cols];
+
+        for (int r = 0; r < rows; r++)
+        {
+            for (int c = 0; c < cols; c++)
+            {
+                Vector3 pos = new Vector3(c * tileWorldSize + offsetX, 0f, r * tileWorldSize + offsetZ);
+                var buildable = Instantiate(buildablePrefab, pos, Quaternion.identity, transform);
+                buildable.name = $"Buildable_{r}_{c}";
+                buildableGrid[r, c] = buildable;
+            }
+        }
+    }
+
+
     private void SpawnRoads()
     {
         float offsetX = -center.x * tileWorldSize;
@@ -243,11 +269,26 @@ public class StreetLayoutGenerator : MonoBehaviour
             {
                 if (roadMap[r, c] == 0) continue;
 
+                // Destroy existing buildable quickly using the grid reference
+                if (buildableGrid != null && buildableGrid[r, c] != null)
+                {
+                    if (Application.isPlaying)
+                        Destroy(buildableGrid[r, c]);
+                    else
+                        DestroyImmediate(buildableGrid[r, c]);
+
+                    buildableGrid[r, c] = null;
+                }
+
+                // Now spawn the road prefab
                 Vector3 pos = new Vector3(c * tileWorldSize + offsetX, 0f, r * tileWorldSize + offsetZ);
-                Instantiate(roadPrefab, pos, Quaternion.identity, transform);
+                var road = Instantiate(roadPrefab, pos, Quaternion.identity, transform);
+                road.name = $"Road_{r}_{c}";
             }
         }
     }
+
+
 
     private bool InBounds(int row, int col)
     {
