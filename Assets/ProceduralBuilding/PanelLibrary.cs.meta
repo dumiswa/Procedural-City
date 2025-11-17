@@ -1,0 +1,16 @@
+fileFormatVersion: 2
+guid: cddc079d571ab53418fb64b824cfdb49
+MonoImporter:
+  externalObjects: {}
+  serializedVersion: 2
+  defaultReferences:
+  - fullWindowPanel: {fileID: 6006144141873032911, guid: 0c8eb2f39980be5499c6cac7fda4124a, type: 3}
+  - oneWindowPanel: {fileID: 1661582760030891629, guid: ec005255192252d43b67883dbc255daa, type: 3}
+  - twoWindowPanel: {fileID: 8440352487011940440, guid: b6836728e691439489c098ec0ff56bb2, type: 3}
+  - noWindowPanel: {fileID: 6843581537099511597, guid: e56d437a729532e489974b58dcf415aa, type: 3}
+  - cornerPanel: {fileID: 3407813388788892231, guid: 6b9e6caba25f17941bd461794bbdeed0, type: 3}
+  executionOrder: 0
+  icon: {instanceID: 0}
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 
