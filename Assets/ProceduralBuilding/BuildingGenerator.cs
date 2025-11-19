@@ -22,7 +22,6 @@ public class BuildingGenerator : MonoBehaviour
         _cornerDepth = cornerPanel.GetComponentInChildren<Renderer>().bounds.size.z;
 
         StartCoroutine(GenerateBuildingAsync());
-        //GenerateBuilding();
     }
 
     private IEnumerator GenerateBuildingAsync()
@@ -38,6 +37,8 @@ public class BuildingGenerator : MonoBehaviour
 
             yield return null;
         }
+
+        GenerateRoof();
     }
 
     private void GenerateFloor(float yOffset, Transform parent)
@@ -96,6 +97,66 @@ public class BuildingGenerator : MonoBehaviour
             pos - rot * Vector3.forward * 2f,
             rot,
             parent
+        );
+    }
+
+    private void GenerateRoof()
+    {
+        float width = wallCount * 4 + 4;
+        float depth = wallCount * 4 + 4;
+        float height = floors * floorHeight + 0.01f;
+
+        float offsetX = -width;
+        float offsetZ = -4; 
+
+        // Create roof object
+        GameObject roof = new GameObject("Roof");
+        roof.transform.parent = transform;
+
+        MeshFilter mf = roof.AddComponent<MeshFilter>();
+        MeshRenderer mr = roof.AddComponent<MeshRenderer>();
+
+        Mesh mesh = new Mesh();
+
+        // Roof vertices (flat quad)
+        Vector3[] vertices = new Vector3[]
+        {
+            new Vector3(0,             height, 0),
+            new Vector3(width,         height, 0),
+            new Vector3(0,             height, depth),
+            new Vector3(width,         height, depth)
+        };
+
+        int[] triangles = new int[]
+        {
+            0, 2, 1,   // first triangle
+            2, 3, 1    // second triangle
+        };
+
+        Vector2[] uv = new Vector2[]
+        {
+            new Vector2(0, 0),
+            new Vector2(1, 0),
+            new Vector2(0, 1),
+            new Vector2(1, 1)
+        };
+
+        mesh.vertices = vertices;
+        mesh.triangles = triangles;
+        mesh.uv = uv;
+
+        mesh.RecalculateNormals();
+
+        mf.mesh = mesh;
+
+        // Assign material (you can change this)
+        mr.material = wallPanel.GetComponentInChildren<Renderer>().sharedMaterial;
+
+        // Move to world footprint origin
+        roof.transform.position = new Vector3(
+            transform.position.x + offsetX,
+            transform.position.y,
+            transform.position.z + offsetZ
         );
     }
 }
