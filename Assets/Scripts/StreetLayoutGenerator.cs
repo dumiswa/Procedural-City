@@ -1,15 +1,30 @@
+using System.Collections.Generic;
 using UnityEngine;
 
 public class StreetLayoutGenerator : MonoBehaviour
 {
-    #region Inpector
-
     [Header("Prefabs")]
     [SerializeField] private GameObject roadPrefab;
     [SerializeField] private GameObject buildablePrefab;
     [SerializeField] private GameObject[,] buildableGrid;
-    [SerializeField] private GameObject buildingWallPanel;
     [SerializeField] private GameObject buildingCornerPanel;
+
+    [Header("Wall Modules by Zone")]
+    public List<GameObject> coreModules;
+    public List<GameObject> middleModules;
+    public List<GameObject> edgeModules;
+
+    [Header("Core Settings")]
+    public Vector2Int coreWallRange = new Vector2Int(6, 9);
+    public Vector2Int coreFloorRange = new Vector2Int(30, 50);
+
+    [Header("Middle Settings")]
+    public Vector2Int middleWallRange = new Vector2Int(4, 7);
+    public Vector2Int middleFloorRange = new Vector2Int(10, 20);
+
+    [Header("Edge Settings")]
+    public Vector2Int edgeWallRange = new Vector2Int(2, 5);
+    public Vector2Int edgeFloorRange = new Vector2Int(3, 7);
 
     [Header("Grid Settings")]
     [SerializeField] private int rows = 60;
@@ -35,10 +50,7 @@ public class StreetLayoutGenerator : MonoBehaviour
 
     private int[,] roadMap;
     private Vector2 center;
-    private int seed;
     private int skyscrapersSpawned = 0;
-
-    #endregion
 
     private void Start() => GenerateCity();
 
@@ -60,15 +72,6 @@ public class StreetLayoutGenerator : MonoBehaviour
         SpawnRoads();
     }
 
-    [ContextMenu("Randomize Layout")]
-    public void RandomizeSeed()
-    {
-        ClearRoads();
-        seed = System.DateTime.Now.Millisecond + Random.Range(0, 99999);
-        Random.InitState(seed);
-        GenerateCity();
-    }
-
     [ContextMenu("Clear Roads")]
     public void ClearRoads()
     {
@@ -86,7 +89,6 @@ public class StreetLayoutGenerator : MonoBehaviour
         float outer = (centerRadius + centerThickness) * (centerRadius + centerThickness);
 
         for (int r = 0; r < rows; r++)
-        {
             for (int c = 0; c < cols; c++)
             {
                 float dx = c - center.x;
@@ -99,7 +101,6 @@ public class StreetLayoutGenerator : MonoBehaviour
                 if (isCenterFilled && dist <= radiusSq)
                     roadMap[r, c] = 1;
             }
-        }
     }
 
     private void BuildMainStreets()
@@ -132,7 +133,6 @@ public class StreetLayoutGenerator : MonoBehaviour
         float radiusSq = centerRadius * centerRadius;
 
         for (int r = 0; r < rows; r += blockSpacing)
-        {
             for (int c = 0; c < cols; c++)
             {
                 float dx = c - center.x;
@@ -140,15 +140,11 @@ public class StreetLayoutGenerator : MonoBehaviour
                 float distSq = dx * dx + dy * dy;
 
                 if (!createCore || distSq > radiusSq)
-                {
                     for (int t = 0; t < gridThickness && InBounds(r + t, c); t++)
                         roadMap[r + t, c] = 1;
-                }
             }
-        }
 
         for (int c = 0; c < cols; c += blockSpacing)
-        {
             for (int r = 0; r < rows; r++)
             {
                 float dx = c - center.x;
@@ -156,26 +152,23 @@ public class StreetLayoutGenerator : MonoBehaviour
                 float distSq = dx * dx + dy * dy;
 
                 if (!createCore || distSq > radiusSq)
-                {
                     for (int t = 0; t < gridThickness && InBounds(r, c + t); t++)
                         roadMap[r, c + t] = 1;
-                }
             }
-        }
     }
 
-    private int EvaluateWallCount(float d)
+    private int GetWallCount(float d)
     {
-        if (d < 0.2f) return Random.Range(6, 9);
-        if (d < 0.5f) return Random.Range(4, 7);
-        return Random.Range(2, 5);
+        if (d < 0.2f) return Random.Range(coreWallRange.x, coreWallRange.y);
+        if (d < 0.5f) return Random.Range(middleWallRange.x, middleWallRange.y);
+        return Random.Range(edgeWallRange.x, edgeWallRange.y);
     }
 
-    private int EvaluateFloors(float d)
+    private int GetFloors(float d)
     {
-        if (d < 0.2f) return Random.Range(30, 50);
-        if (d < 0.5f) return Random.Range(10, 20);
-        return Random.Range(3, 7);
+        if (d < 0.2f) return Random.Range(coreFloorRange.x, coreFloorRange.y);
+        if (d < 0.5f) return Random.Range(middleFloorRange.x, middleFloorRange.y);
+        return Random.Range(edgeFloorRange.x, edgeFloorRange.y);
     }
 
     private void SpawnBuildableTiles()
@@ -207,7 +200,6 @@ public class StreetLayoutGenerator : MonoBehaviour
 
                 float tileCenterX = (startC + endC) * 0.5f;
                 float tileCenterY = (startR + endR) * 0.5f;
-
                 float d = Vector2.Distance(new Vector2(tileCenterX, tileCenterY), center) /
                           (Mathf.Max(rows, cols) * 0.5f);
 
@@ -217,57 +209,38 @@ public class StreetLayoutGenerator : MonoBehaviour
                     buildingCount = 1;
                     skyscrapersSpawned++;
                 }
-                else if (d < 0.5f)
-                {
-                    buildingCount = Random.Range(1, 3);
-                }
-                else
-                {
-                    buildingCount = Random.Range(3, 7);
-                }
+                else if (d < 0.5f) buildingCount = Random.Range(1, 3);
+                else buildingCount = Random.Range(3, 7);
 
                 float tileMinX = startC * TILE_WORLD_SIZE + offsetX;
                 float tileMaxX = (endC + 1) * TILE_WORLD_SIZE + offsetX;
                 float tileMinZ = startR * TILE_WORLD_SIZE + offsetZ;
                 float tileMaxZ = (endR + 1) * TILE_WORLD_SIZE + offsetZ;
 
-                int tileWidthTiles = endC - startC + 1;
-                int tileHeightTiles = endR - startR + 1;
+                int widthTiles = endC - startC + 1;
+                int heightTiles = endR - startR + 1;
 
                 Vector3 tilePos = new Vector3(
-                    (startC + endC + 1) * 0.5f * TILE_WORLD_SIZE + offsetX - TILE_WORLD_SIZE * 0.5f,
+                    (startC + endC + 1) * TILE_WORLD_SIZE * 0.5f + offsetX - TILE_WORLD_SIZE * 0.5f,
                     0f,
-                    (startR + endR + 1) * 0.5f * TILE_WORLD_SIZE + offsetZ - TILE_WORLD_SIZE * 0.5f
+                    (startR + endR + 1) * TILE_WORLD_SIZE * 0.5f + offsetZ - TILE_WORLD_SIZE * 0.5f
                 );
 
                 var block = Instantiate(buildablePrefab, tilePos, Quaternion.identity, transform);
-                block.transform.localScale = new Vector3(tileWidthTiles, 1f, tileHeightTiles);
+                block.transform.localScale = new Vector3(widthTiles, 1f, heightTiles);
 
-                var centers = new System.Collections.Generic.List<Vector3>();
-                var footprints = new System.Collections.Generic.List<float>();
+                var centers = new List<Vector3>();
+                var footprints = new List<float>();
 
                 for (int i = 0; i < buildingCount; i++)
                 {
-                    int wc = EvaluateWallCount(d);
-                    int fl = EvaluateFloors(d);
+                    int wc = GetWallCount(d);
+                    int fl = GetFloors(d);
 
-                    bool fits = false;
-                    float footprint = 0f;
-                    float half = 0f;
+                    float footprint = wc * 4f + 4f;
+                    float half = footprint * 0.5f;
 
-                    while (wc > 0 && !fits)
-                    {
-                        footprint = wc * 4f + 4f;
-                        half = footprint * 0.5f;
-
-                        if (footprint <= (tileMaxX - tileMinX) &&
-                            footprint <= (tileMaxZ - tileMinZ))
-                            fits = true;
-                        else
-                            wc--;
-                    }
-
-                    if (!fits || wc < 1)
+                    if (footprint > tileMaxX - tileMinX || footprint > tileMaxZ - tileMinZ)
                         continue;
 
                     float pivotMinX = tileMinX + footprint;
@@ -280,19 +253,21 @@ public class StreetLayoutGenerator : MonoBehaviour
                         continue;
 
                     bool placed = false;
+
                     for (int attempt = 0; attempt < 12 && !placed; attempt++)
                     {
                         float px = Random.Range(pivotMinX, pivotMaxX);
                         float pz = Random.Range(pivotMinZ, pivotMaxZ);
 
-                        float centerX = px - half;
-                        float centerZ = pz + half;
-                        Vector3 centerPos = new Vector3(centerX, 0f, centerZ);
+                        float cx = px - half;
+                        float cz = pz + half;
+
+                        Vector3 cpos = new Vector3(cx, 0, cz);
 
                         bool tooClose = false;
                         for (int j = 0; j < centers.Count; j++)
                         {
-                            float dist = Vector3.Distance(centerPos, centers[j]);
+                            float dist = Vector3.Distance(cpos, centers[j]);
                             float req = (half + footprints[j] * 0.5f) - 0.5f;
                             if (dist < req)
                             {
@@ -301,21 +276,24 @@ public class StreetLayoutGenerator : MonoBehaviour
                             }
                         }
 
-                        if (tooClose)
-                            continue;
+                        if (tooClose) continue;
 
-                        centers.Add(centerPos);
+                        centers.Add(cpos);
                         footprints.Add(footprint);
 
                         var root = new GameObject("Building");
                         root.transform.SetParent(block.transform);
                         root.transform.position = new Vector3(px - 4.8f, 0f, pz - 0.5f);
+                        root.isStatic = true;
 
-                        var b = root.AddComponent<BuildingGenerator>();
-                        b.wallPanel = buildingWallPanel;
-                        b.cornerPanel = buildingCornerPanel;
-                        b.wallCount = wc;
-                        b.floors = fl;
+                        var gen = root.AddComponent<BuildingGenerator>();
+                        gen.cornerPanel = buildingCornerPanel;
+                        gen.wallCount = wc;
+                        gen.floors = fl;
+
+                        if (d < 0.2f) gen.wallModules = coreModules;
+                        else if (d < 0.5f) gen.wallModules = middleModules;
+                        else gen.wallModules = edgeModules;
 
                         placed = true;
                     }
@@ -330,19 +308,13 @@ public class StreetLayoutGenerator : MonoBehaviour
         float offsetZ = -center.y * TILE_WORLD_SIZE;
 
         for (int r = 0; r < rows; r++)
-        {
             for (int c = 0; c < cols; c++)
-            {
-                if (roadMap[r, c] == 0) continue;
-
-                Vector3 pos = new Vector3(c * TILE_WORLD_SIZE + offsetX, 0f, r * TILE_WORLD_SIZE + offsetZ);
-                Instantiate(roadPrefab, pos, Quaternion.identity, transform);
-            }
-        }
+                if (roadMap[r, c] == 1)
+                    Instantiate(roadPrefab, new Vector3(c * TILE_WORLD_SIZE + offsetX, 0f, r * TILE_WORLD_SIZE + offsetZ), Quaternion.identity, transform);
     }
 
-    private bool InBounds(int row, int col)
+    private bool InBounds(int r, int c)
     {
-        return row >= 0 && row < rows && col >= 0 && col < cols;
+        return r >= 0 && r < rows && c >= 0 && c < cols;
     }
 }

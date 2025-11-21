@@ -1,9 +1,10 @@
 using System.Collections;
+using System.Collections.Generic;
 using UnityEngine;
 
 public class BuildingGenerator : MonoBehaviour
 {
-    public GameObject wallPanel;
+    public List<GameObject> wallModules;
     public GameObject cornerPanel;
 
     public int floors = 4;
@@ -11,26 +12,34 @@ public class BuildingGenerator : MonoBehaviour
     public int floorHeight = 4;
 
     private GameObject _lastCorner;
+    private float _wallDepth;
+    private float _cornerDepth;
+    private const float Shift = 6f;
 
-    private float _wallDepth;    // 4 units
-    private float _cornerDepth;  // 2 units
-    private const float Shift = 6f; // CORNER (2) + WALL (4)
+    private readonly List<Renderer> lod0Renderers = new List<Renderer>();
+    private Renderer lod1Renderer;
 
     private void Start()
     {
-        _wallDepth = wallPanel.GetComponentInChildren<Renderer>().bounds.size.z;
+        if (wallModules == null || wallModules.Count == 0 || cornerPanel == null)
+            return;
+
+        var sample = wallModules[0].GetComponentInChildren<Renderer>();
+        _wallDepth = sample.bounds.size.z;
         _cornerDepth = cornerPanel.GetComponentInChildren<Renderer>().bounds.size.z;
+
+        if (GetComponent<LODGroup>() == null)
+            gameObject.AddComponent<LODGroup>();
 
         StartCoroutine(GenerateBuildingAsync());
     }
 
     private IEnumerator GenerateBuildingAsync()
     {
-        for (var floor = 0; floor < floors; floor++)
+        for (int floor = 0; floor < floors; floor++)
         {
             float yOffset = floor * floorHeight;
-
-            var floorParent = new GameObject($"Floor_{floor}");
+            var floorParent = new GameObject("Floor_" + floor);
             floorParent.transform.parent = transform;
 
             GenerateFloor(yOffset, floorParent.transform);
@@ -39,65 +48,76 @@ public class BuildingGenerator : MonoBehaviour
         }
 
         GenerateRoof();
+        SetupLODGroups();
     }
 
     private void GenerateFloor(float yOffset, Transform parent)
     {
-        GenerateFirstFace(yOffset, parent);        // first face 
-        GenerateAdjacentFace(new Vector3(-Shift, 0, 0), yOffset, parent); // Face 2: -X
-        GenerateAdjacentFace(new Vector3(0, 0, -Shift), yOffset, parent); // Face 3: -Z
-        GenerateAdjacentFace(new Vector3(Shift, 0, 0), yOffset, parent);  // Face 4: +X
+        GenerateFirstFace(yOffset, parent);
+        GenerateAdjacentFace(new Vector3(-Shift, 0, 0), yOffset, parent);
+        GenerateAdjacentFace(new Vector3(0, 0, -Shift), yOffset, parent);
+        GenerateAdjacentFace(new Vector3(Shift, 0, 0), yOffset, parent);
     }
 
-    //First face
+    private void AddRenderersRecursive(GameObject obj)
+    {
+        var rs = obj.GetComponentsInChildren<Renderer>();
+        foreach (var r in rs)
+            lod0Renderers.Add(r);
+    }
+
+
     private void GenerateFirstFace(float yOffset, Transform parent)
     {
         var p = transform.position + transform.forward * _cornerDepth;
         p.y = transform.position.y + yOffset;
 
-        // wall panels
-        for (var i = 0; i < wallCount; i++)
+        for (int i = 0; i < wallCount; i++)
         {
-            var wp = new Vector3(p.x, transform.position.y + yOffset, p.z);
-            Instantiate(wallPanel, wp, transform.rotation, parent);
+            GameObject module = wallModules[Random.Range(0, wallModules.Count)];
+            var wp = Instantiate(module, new Vector3(p.x, p.y, p.z), transform.rotation, parent);
+            AddRenderersRecursive(wp);
             p += transform.forward * _wallDepth;
         }
 
-        // last corner
-        _lastCorner = Instantiate(
+        var c = Instantiate(
             cornerPanel,
             new Vector3(p.x, transform.position.y + yOffset, p.z - 2f),
             transform.rotation,
             parent
         );
+
+        _lastCorner = c;
+        AddRenderersRecursive(c);
     }
 
-    //Faces 2,3 and 4
-    private void GenerateAdjacentFace(Vector3 positionOffset, float yOffset, Transform parent)
+    private void GenerateAdjacentFace(Vector3 offset, float yOffset, Transform parent)
     {
         var pos = new Vector3(
-            _lastCorner.transform.position.x + positionOffset.x,
+            _lastCorner.transform.position.x + offset.x,
             transform.position.y + yOffset,
-            _lastCorner.transform.position.z + positionOffset.z
+            _lastCorner.transform.position.z + offset.z
         );
 
-        // turn 90 degrees right
         var rot = _lastCorner.transform.rotation * Quaternion.Euler(0, -90f, 0);
 
-        // wall panels
-        for (var i = 0; i < wallCount; i++)
+        for (int i = 0; i < wallCount; i++)
         {
-            Instantiate(wallPanel, pos, rot, parent);
+            GameObject module = wallModules[Random.Range(0, wallModules.Count)];
+            var wp = Instantiate(module, pos, rot, parent);
+            AddRenderersRecursive(wp);
             pos += rot * Vector3.forward * _wallDepth;
         }
 
-        // last corner becomes next starting point
-        _lastCorner = Instantiate(
+        var c = Instantiate(
             cornerPanel,
             pos - rot * Vector3.forward * 2f,
             rot,
             parent
         );
+
+        _lastCorner = c;
+        AddRenderersRecursive(c);
     }
 
     private void GenerateRoof()
@@ -106,10 +126,6 @@ public class BuildingGenerator : MonoBehaviour
         float depth = wallCount * 4 + 4;
         float height = floors * floorHeight + 0.01f;
 
-        float offsetX = -width;
-        float offsetZ = -4; 
-
-        // Create roof object
         GameObject roof = new GameObject("Roof");
         roof.transform.parent = transform;
 
@@ -118,45 +134,69 @@ public class BuildingGenerator : MonoBehaviour
 
         Mesh mesh = new Mesh();
 
-        // Roof vertices (flat quad)
         Vector3[] vertices = new Vector3[]
         {
-            new Vector3(0,             height, 0),
-            new Vector3(width,         height, 0),
-            new Vector3(0,             height, depth),
-            new Vector3(width,         height, depth)
+            new Vector3(0, height, 0),
+            new Vector3(width, height, 0),
+            new Vector3(0, height, depth),
+            new Vector3(width, height, depth)
         };
 
-        int[] triangles = new int[]
-        {
-            0, 2, 1,   // first triangle
-            2, 3, 1    // second triangle
-        };
+        int[] triangles = new int[] { 0, 2, 1, 2, 3, 1 };
 
         Vector2[] uv = new Vector2[]
         {
-            new Vector2(0, 0),
-            new Vector2(1, 0),
-            new Vector2(0, 1),
-            new Vector2(1, 1)
+            new Vector2(0,0),
+            new Vector2(1,0),
+            new Vector2(0,1),
+            new Vector2(1,1)
         };
 
         mesh.vertices = vertices;
         mesh.triangles = triangles;
         mesh.uv = uv;
-
         mesh.RecalculateNormals();
 
         mf.mesh = mesh;
 
-        // Assign material (you can change this)
-        mr.material = wallPanel.GetComponentInChildren<Renderer>().sharedMaterial;
+        mr.sharedMaterial = wallModules[0].GetComponentInChildren<Renderer>().sharedMaterial;
 
-        // Move to world footprint origin
         roof.transform.position = new Vector3(
-            transform.position.x + offsetX,
+            transform.position.x - width,
             transform.position.y,
-            transform.position.z + offsetZ
+            transform.position.z - 4f
         );
+
+        AddRenderersRecursive(roof);
+    }
+
+    private void SetupLODGroups()
+    {
+        var group = GetComponent<LODGroup>();
+        if (group == null || lod0Renderers.Count == 0)
+            return;
+
+        Bounds bounds = lod0Renderers[0].bounds;
+        for (int i = 1; i < lod0Renderers.Count; i++)
+            bounds.Encapsulate(lod0Renderers[i].bounds);
+
+        GameObject lod1 = GameObject.CreatePrimitive(PrimitiveType.Cube);
+        lod1.transform.SetParent(transform);
+        lod1.transform.position = bounds.center;
+        lod1.transform.localRotation = Quaternion.identity;
+        lod1.transform.localScale = bounds.size;
+
+        var collider = lod1.GetComponent<Collider>();
+        if (collider != null)
+            Destroy(collider);
+
+        lod1Renderer = lod1.GetComponent<Renderer>();
+        lod1Renderer.sharedMaterial = lod0Renderers[0].sharedMaterial;
+
+        LOD lod0 = new LOD(0.20f, lod0Renderers.ToArray());
+        LOD lod1Level = new LOD(0.05f, new Renderer[] { lod1Renderer });
+
+        group.SetLODs(new LOD[] { lod0, lod1Level });
+        group.RecalculateBounds();
     }
 }
